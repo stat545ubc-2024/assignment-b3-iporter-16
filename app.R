@@ -18,10 +18,9 @@ ui <- fluidPage(
   #that are then used for the two graphical outputs. It also shows how many cheeses are available for those milks.
   sidebarLayout(
     sidebarPanel(h3("What milk?"),
-                 selectInput("milkInput", "",
-                              choices = c("cow","goat","buffalo","camel","donkey","goat","sheep","yak","plant-based"),
-                              selected = c("cow","plant-based"),
-                              multiple=TRUE),
+                 checkboxGroupInput("milkInput", "",
+                              choices = c("cow","goat","buffalo","camel","donkey","sheep","yak","plant-based"),
+                              selected = c("cow")),
                 style = "background-color: skyblue;border: 2px solid black; border-radius: 5px; padding: 10px;",
                 textOutput("cheeseCount")),
 
@@ -65,22 +64,32 @@ server <- function(input, output) {
     cheese_long %>%
       filter(milk %in% input$milkInput)})
   output$cheeseCount <- renderText({
-    paste("There are", nrow(filtered_cheese()), "cheeses available to you. Wow!")
+    ifelse(nrow(filtered_cheese())==0,
+      paste("There are no cheeses available - try picking more milk types!"),
+      paste("There are", nrow(filtered_cheese()), "cheeses available to you. Wow!")
+  )
   })
 
   #Tab 1: a pie chart of cheese colours, faceted by milk(s) selected in the input section above.
   #Additionally factor the cheese colours and assign these levels hex codes so the graph is consistently coded.
   output$pieChart <- renderPlot({
     cheese_long$color <- cheese_long$color %>% factor(levels=c("white","red","orange","yellow","green","blue","brown"))
-    cheese_cols <- c("white","darkred","#ffa600","#f9e02e","#b8d1ae","#a5d2fb","#613f00")
+    cheese_cols <- c("white"="white","red"="darkred","orange"="#ffa600",
+                     "yellow"="#f9e02e","green"="#b8d1ae","blue"="#a5d2fb","brown"="#613f00")
     cheese_long %>%
       filter(!is.na(color)) %>%
       filter(milk %in% input$milkInput) %>%
       ggpie(x=color,
             by=milk,
             percent=FALSE,
-            nrow=ceiling(length(input$milkInput) / 3)) +
-      scale_fill_manual(values=cheese_cols)
+            nrow=ceiling(length(input$milkInput) / 3),
+            facet.label.size = 14) +
+      scale_fill_manual(values=cheese_cols)+
+      theme(
+        strip.text = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 14, face = "bold")
+      )
   })
   #Tab 2: a bar chart of cheese types (families) faceted by milk selected in the input section above.
   #Bars are automatically ordered and coloured by quantity of options.
@@ -88,7 +97,7 @@ server <- function(input, output) {
     cheese_long %>%
       filter(!is.na(family)) %>%
       filter(milk %in% input$milkInput) %>%
-      count(family, milk) %>%
+      count(family) %>%
       mutate(family = fct_reorder(family,n,.desc=TRUE)) %>%
       ggplot(aes(x = fct_infreq(family), y = n, fill = n)) +  # Fill by count
       geom_bar(stat = "identity", position = "dodge", show.legend = FALSE) +
@@ -96,7 +105,9 @@ server <- function(input, output) {
       theme_classic() +
       scale_fill_gradient(low = "lightyellow", high = "darkorange") +  # Color gradient from light to dark orange
       scale_color_manual(values="black") +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+      theme(axis.text.x = element_text(angle = 45, hjust = 1,size=12),
+            axis.title.x = element_text(size = 14, face = "bold"),
+            axis.title.y = element_text(size = 14, face = "bold"))+
       scale_y_continuous(expand = c(0,0))
   })
 }
